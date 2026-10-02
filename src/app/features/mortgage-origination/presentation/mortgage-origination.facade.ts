@@ -10,17 +10,20 @@ import {
 import {
   ApplicationRecord,
   applicationFingerprint,
-  ConfirmationLostError,
   HistorySearchResult,
   MortgageApplicationData,
-  ReferenceConflictError,
   ViabilityResult,
 } from '../domain/mortgage.models';
+import { ConfirmationLostError, ReferenceConflictError } from '../domain/mortgage.errors';
 
 export type ViabilityState =
   | { kind: 'idle' }
   | { kind: 'loading'; data: MortgageApplicationData }
-  | { kind: 'success'; data: MortgageApplicationData; result: ViabilityResult }
+  | {
+      kind: 'success';
+      data: MortgageApplicationData;
+      result: ViabilityResult;
+    }
   | { kind: 'stale' }
   | { kind: 'error'; message: string };
 
@@ -42,27 +45,56 @@ export class MortgageOriginationFacade {
   private readonly submitUseCase = inject(SubmitApplicationUseCase);
   private readonly searchUseCase = inject(SearchHistoryUseCase);
   private readonly searchTerms = new Subject<string>();
+
   private latestViabilityRequest = 0;
   private activeSnapshot: MortgageApplicationData | null = null;
   private submissionAttempts = 0;
 
   readonly reference = signal(createReference());
-  readonly viability = signal<ViabilityState>({ kind: 'idle' });
-  readonly submission = signal<SubmissionState>({ kind: 'idle' });
-  readonly history = signal<HistoryState>({ kind: 'loading' });
+
+  readonly viability = signal<ViabilityState>({
+    kind: 'idle',
+  });
+
+  readonly submission = signal<SubmissionState>({
+    kind: 'idle',
+  });
+
+  readonly history = signal<HistoryState>({
+    kind: 'loading',
+  });
+
   readonly pendingViability = signal(0);
+
   readonly currentSearch = signal('');
+
   readonly page = signal(1);
-  readonly pageSize = 50;
+
+  readonly pageSize = signal(25);
+
   readonly pageCount = computed(() => {
     const state = this.history();
-    return state.kind === 'success' ? Math.max(1, Math.ceil(state.result.total / this.pageSize)) : 1;
+    const size = this.pageSize();
+
+    if (state.kind !== 'success') {
+      return 1;
+    }
+
+    return Math.max(1, Math.ceil(state.result.total / size));
   });
+
   readonly visibleHistory = computed(() => {
     const state = this.history();
-    if (state.kind !== 'success') return [];
-    const start = (this.page() - 1) * this.pageSize;
-    return state.result.items.slice(start, start + this.pageSize);
+
+    if (state.kind !== 'success') {
+      return [];
+    }
+
+    const size = this.pageSize();
+    const currentPage = this.page();
+    const start = (currentPage - 1) * size;
+
+    return state.result.items.slice(start, start + size);
   });
 
   constructor() {
@@ -74,10 +106,19 @@ export class MortgageOriginationFacade {
           this.currentSearch.set(term);
           this.page.set(1);
           this.history.set({ kind: 'loading' });
+
           return this.searchUseCase.execute(term).pipe(
-            map((result): HistoryState => ({ kind: 'success', result })),
+            map(
+              (result): HistoryState => ({
+                kind: 'success',
+                result,
+              }),
+            ),
             catchError((error: Error) =>
-              of<HistoryState>({ kind: 'error', message: error.message }),
+              of<HistoryState>({
+                kind: 'error',
+                message: error.message,
+              }),
             ),
           );
         }),
@@ -89,8 +130,13 @@ export class MortgageOriginationFacade {
   checkViability(data: MortgageApplicationData): void {
     const requestId = ++this.latestViabilityRequest;
     const snapshot = { ...data };
+
     this.pendingViability.update((count) => count + 1);
-    this.viability.set({ kind: 'loading', data: snapshot });
+
+    this.viability.set({
+      kind: 'loading',
+      data: snapshot,
+    });
 
     this.checkUseCase
       .execute(snapshot)
@@ -98,12 +144,19 @@ export class MortgageOriginationFacade {
       .subscribe({
         next: (result) => {
           if (requestId === this.latestViabilityRequest) {
-            this.viability.set({ kind: 'success', data: snapshot, result });
+            this.viability.set({
+              kind: 'success',
+              data: snapshot,
+              result,
+            });
           }
         },
         error: (error: Error) => {
           if (requestId === this.latestViabilityRequest) {
-            this.viability.set({ kind: 'error', message: error.message });
+            this.viability.set({
+              kind: 'error',
+              message: error.message,
+            });
           }
         },
       });
@@ -111,7 +164,11 @@ export class MortgageOriginationFacade {
 
   formChanged(data: MortgageApplicationData | null): void {
     const state = this.viability();
-    if (state.kind !== 'loading' && state.kind !== 'success') return;
+
+    if (state.kind !== 'loading' && state.kind !== 'success') {
+      return;
+    }
+
     if (!data || applicationFingerprint(data) !== applicationFingerprint(state.data)) {
       this.latestViabilityRequest += 1;
       this.viability.set({ kind: 'stale' });
@@ -120,21 +177,39 @@ export class MortgageOriginationFacade {
 
   submit(data: MortgageApplicationData): void {
     this.activeSnapshot ??= { ...data };
+
     this.submissionAttempts += 1;
-    this.submission.set({ kind: 'loading', attempts: this.submissionAttempts });
+
+    this.submission.set({
+      kind: 'loading',
+      attempts: this.submissionAttempts,
+    });
 
     this.submitUseCase.execute(this.reference(), this.activeSnapshot).subscribe({
       next: (record) => {
-        this.submission.set({ kind: 'success', record });
+        this.submission.set({
+          kind: 'success',
+          record,
+        });
+
         this.search(this.currentSearch());
       },
       error: (error: Error) => {
         if (error instanceof ConfirmationLostError) {
-          this.submission.set({ kind: 'uncertain', message: error.message });
+          this.submission.set({
+            kind: 'uncertain',
+            message: error.message,
+          });
         } else if (error instanceof ReferenceConflictError) {
-          this.submission.set({ kind: 'conflict', message: error.message });
+          this.submission.set({
+            kind: 'conflict',
+            message: error.message,
+          });
         } else {
-          this.submission.set({ kind: 'error', message: error.message });
+          this.submission.set({
+            kind: 'error',
+            message: error.message,
+          });
         }
       },
     });
@@ -144,8 +219,14 @@ export class MortgageOriginationFacade {
     this.reference.set(createReference());
     this.activeSnapshot = null;
     this.submissionAttempts = 0;
-    this.submission.set({ kind: 'idle' });
-    this.viability.set({ kind: 'idle' });
+
+    this.submission.set({
+      kind: 'idle',
+    });
+
+    this.viability.set({
+      kind: 'idle',
+    });
   }
 
   search(term: string): void {
@@ -154,6 +235,15 @@ export class MortgageOriginationFacade {
 
   setPage(page: number): void {
     this.page.set(Math.min(Math.max(1, page), this.pageCount()));
+  }
+
+  setPageSize(pageSize: number): void {
+    if (![25, 50, 100].includes(pageSize)) {
+      return;
+    }
+
+    this.pageSize.set(pageSize);
+    this.page.set(1);
   }
 }
 

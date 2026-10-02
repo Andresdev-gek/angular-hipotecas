@@ -3,11 +3,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 
-import {
-  ConfirmationLostError,
-  MortgageApplicationData,
-  ReferenceConflictError,
-} from '../domain/mortgage.models';
+import { MortgageApplicationData } from '../domain/mortgage.models';
+import { ConfirmationLostError, ReferenceConflictError } from '../domain/mortgage.errors';
 import { MockMortgageApiAdapter } from './mock-mortgage-api.adapter';
 import { MOCK_SCENARIOS } from './mock-scenarios';
 

@@ -6,15 +6,13 @@ import { MortgageApiPort } from '../application/mortgage-api.port';
 import {
   ApplicationRecord,
   applicationFingerprint,
-  ConfirmationLostError,
   evaluateViability,
   HistorySearchResult,
   MortgageApplicationData,
-  ReferenceConflictError,
-  SimulatedServiceError,
   SubmissionCommand,
   ViabilityResult,
 } from '../domain/mortgage.models';
+import { ConfirmationLostError, ReferenceConflictError, SimulatedServiceError } from '../domain/mortgage.errors';
 import { MOCK_SCENARIOS } from './mock-scenarios';
 
 @Injectable({ providedIn: 'root' })
@@ -92,11 +90,15 @@ export class MockMortgageApiAdapter implements MortgageApiPort {
       map(() => {
         if (this.scenarios.has('query-error') && !this.searchErrorEmitted) {
           this.searchErrorEmitted = true;
-          throw new SimulatedServiceError('No fue posible consultar el historial. Intenta nuevamente.');
+          throw new SimulatedServiceError(
+            'No fue posible consultar el historial. Intenta nuevamente.',
+          );
         }
         const needle = normalize(term);
         const items = [...this.records.values()].filter((record) => {
-          return !needle || normalize(`${record.reference} ${record.data.clientCode}`).includes(needle);
+          return (
+            !needle || normalize(`${record.reference} ${record.data.clientCode}`).includes(needle)
+          );
         });
         return { items, total: items.length };
       }),
