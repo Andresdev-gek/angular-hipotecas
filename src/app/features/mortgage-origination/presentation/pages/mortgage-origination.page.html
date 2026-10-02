@@ -1,0 +1,56 @@
+<header class="border-b border-teal-900/10 bg-white/85 backdrop-blur">
+  <div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
+    <a routerLink="/originacion" class="flex items-center gap-3 text-slate-950 no-underline">
+      <span class="grid size-10 place-items-center rounded-2xl bg-teal-800 text-sm font-black text-white">IAS</span>
+      <span>
+        <strong class="block text-sm">BancoIAS</strong>
+        <span class="text-xs text-slate-500">Crédito hipotecario</span>
+      </span>
+    </a>
+  </div>
+</header>
+
+<main class="mx-auto max-w-7xl px-5 py-10 lg:px-8">
+  <section class="mb-8 max-w-3xl">
+    <p class="text-sm font-bold uppercase tracking-[0.22em] text-teal-700">Originación hipotecaria</p>
+    <h1 class="mt-3 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">Decisiones claras, sin perder el contexto.</h1>
+    <p class="mt-4 max-w-2xl text-base leading-7 text-slate-600">Consulta la viabilidad inicial, radica con una referencia segura y recupera confirmaciones sin duplicar solicitudes.</p>
+    @if (scenarios.length > 0) {
+      <div class="mt-4 flex flex-wrap items-center gap-2" aria-label="Escenarios simulados activos">
+        <span class="text-xs font-semibold text-slate-500">Escenarios:</span>
+        @for (scenario of scenarios; track scenario) {
+          <span class="rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-violet-800">{{ scenario }}</span>
+        }
+      </div>
+    }
+  </section>
+
+  <div class="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
+    <app-mortgage-application-form
+      [reference]="facade.reference()"
+      [submission]="facade.submission()"
+      (check)="facade.checkViability($event)"
+      (submitRequest)="facade.submit($event)"
+      (changed)="facade.formChanged($event)"
+      (newApplication)="facade.newApplication()"
+    />
+    <app-viability-summary [state]="facade.viability()" [pendingCount]="facade.pendingViability()" />
+  </div>
+
+  <div class="mt-6">
+    <app-application-history
+      [state]="facade.history()"
+      [items]="facade.visibleHistory()"
+      [page]="facade.page()"
+      [pageCount]="facade.pageCount()"
+      [searchTerm]="facade.currentSearch()"
+      (search)="facade.search($event)"
+      (retry)="facade.search(facade.currentSearch())"
+      (pageChange)="facade.setPage($event)"
+    />
+  </div>
+</main>
+
+<footer class="mx-auto max-w-7xl px-5 pb-8 text-center text-xs text-slate-500 lg:px-8">
+  La viabilidad inicial no constituye aprobación del crédito.
+</footer>
